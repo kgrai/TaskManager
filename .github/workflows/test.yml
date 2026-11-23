@@ -1,11 +1,19 @@
 name: Test
-on: [push, pull_request]
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+permissions:
+  contents: read
 jobs:
   test:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
       - run: node --test tasks.test.js
