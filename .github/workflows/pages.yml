@@ -1,21 +1,38 @@
 name: Test and deploy to GitHub Pages
 on:
-  pull_request_target:
-    types: [closed]
+  push:
     branches: [main]
 permissions:
   contents: read
+  pull-requests: read
 concurrency:
   group: pages
   cancel-in-progress: false
 jobs:
+  check-merge:
+    runs-on: ubuntu-latest
+    outputs:
+      merged: ${{ steps.check.outputs.merged }}
+    steps:
+      - name: Check whether this commit merged a pull request
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          result=$(gh api "repos/$REPOSITORY/commits/$COMMIT_SHA/pulls" | jq --arg sha "$COMMIT_SHA" '[.[] | select(.merged_at != null and .base.ref == "main" and .merge_commit_sha == $sha)] | length')
+          if [ "$result" -gt 0 ]; then
+            echo "merged=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "merged=false" >> "$GITHUB_OUTPUT"
+          fi
   test-and-build:
-    if: github.event.pull_request.merged == true
+    needs: check-merge
+    if: needs.check-merge.outputs.merged == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
